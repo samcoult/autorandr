@@ -74,8 +74,9 @@ as root to install it.
 If you prefer to have a system wide install managed by your package manager,
 you can
 
-* Use the [official Arch package](https://www.archlinux.org/packages/community/any/autorandr/).
+* Use the [official Arch package](https://archlinux.org/packages/extra/any/autorandr/).
 * Use the [official Debian package](https://packages.debian.org/sid/x11/autorandr) on sid
+* Use the [official Fedora package](https://packages.fedoraproject.org/pkgs/autorandr/autorandr/) on Fedora 39+.
 * Use the [FreeBSD Ports Collection](https://www.freshports.org/x11/autorandr/) on FreeBSD.
 * Use the [official Gentoo package](https://packages.gentoo.org/packages/x11-misc/autorandr).
 * Use the
@@ -256,7 +257,31 @@ kernel parameter `nvidia-drm.modeset` must be set to 1. For example, add a file
 options nvidia_drm modeset=1
 ```
 
+### Wayland
+
+Before running autorandr will check the environment for the `WAYLAND_DISPLAY`
+variable to check if the program is running in a Wayland session. This is to
+avoid issues between usage of xrandr in Wayland environments.
+
+If you need to run autorandr in a Wayland environment, one workaround is to
+unset the `WAYLAND_DISPLAY` variable before running the program, such as:
+
+```
+WAYLAND_DISPLAY= autorandr
+```
+
 ## Changelog
+
+**autorandr 1.15**
+* *2023-11-27* Several regex literal bug fixes
+* *2023-12-27* Fix #375: Listen to correct events in launcher
+* *2024-03-03* Fix #367: Skip profiles without outputs
+
+
+**autorandr 1.14**
+* *2023-06-22* Direct --match-edid renaming of output messages to stderr
+* *2023-06-22* Add Wayland awareness
+* *2023-06-22* Various minor auxiliary tooling bug fixes, see git-log
 
 **autorandr 1.13.3**
 * *2023-01-24* Revert udev rule to rely on "change" event (see #324)

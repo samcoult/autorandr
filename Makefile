@@ -72,6 +72,7 @@ install_autostart_config:
 
 ifneq ($(PREFIX),/usr/)
 	sed -i -re 's#/usr/bin/autorandr#$(subst #,\#,${PREFIX})/bin/autorandr#g' ${DESTDIR}/${XDG_AUTOSTART_DIR}/autorandr.desktop
+	sed -i -re 's#/usr/bin/autorandr#$(subst #,\#,${PREFIX})/bin/autorandr#g' ${DESTDIR}/${XDG_AUTOSTART_DIR}/autorandr-kde.desktop
 endif
 
 uninstall_autostart_config:
@@ -134,7 +135,7 @@ endif
 install_udev:
 	$(if $(UDEV_RULES_DIR),,$(error UDEV_RULES_DIR is not defined))
 	mkdir -p ${DESTDIR}/${UDEV_RULES_DIR}/
-	echo 'ACTION=="change", SUBSYSTEM=="drm", RUN+="$(if $(findstring systemd, $(MAKECMDGOALS)),/bin/systemctl start --no-block autorandr.service,${PREFIX}/bin/autorandr --batch --change --default default)"' > ${DESTDIR}/${UDEV_RULES_DIR}/40-monitor-hotplug.rules
+	echo 'ACTION=="change", SUBSYSTEM=="drm", RUN+="$(if $(findstring systemd, $(DEFAULT_TARGETS)),/bin/systemctl start --no-block autorandr.service,${PREFIX}/bin/autorandr --batch --change --default default)"' > ${DESTDIR}/${UDEV_RULES_DIR}/40-monitor-hotplug.rules
 	@echo
 	@echo "To activate the udev rules, run this command as root:"
 	@echo "    udevadm control --reload-rules"
@@ -160,8 +161,9 @@ LAUNCHER_LDLIBS=$(shell pkg-config --libs pkg-config xcb xcb-randr 2>/dev/null)
 ifneq (,$(LAUNCHER_LDLIBS))
 CLEANUP_FILES+=contrib/autorandr_launcher/autorandr-launcher
 LAUNCHER_CFLAGS=$(shell pkg-config --cflags pkg-config xcb xcb-randr 2>/dev/null)
+DEF_AUTORANDR_PATH="-DAUTORANDR_PATH=\"${DESTDIR}${PREFIX}/bin/autorandr\""
 contrib/autorandr_launcher/autorandr-launcher: contrib/autorandr_launcher/autorandr_launcher.c
-	$(CC) $(CFLAGS) $(LAUNCHER_CFLAGS) -o $@ $+ $(LDFLAGS) $(LAUNCHER_LDLIBS) $(LDLIBS)
+	$(CC) $(CFLAGS) $(LAUNCHER_CFLAGS) $(DEF_AUTORANDR_PATH) -o $@ $+ $(LDFLAGS) $(LAUNCHER_LDLIBS) $(LDLIBS)
 
 install_launcher: contrib/autorandr_launcher/autorandr-launcher
 	mkdir -p ${DESTDIR}${PREFIX}/bin

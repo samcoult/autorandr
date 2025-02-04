@@ -50,7 +50,7 @@ if sys.version_info.major == 2:
 else:
     import configparser
 
-__version__ = "1.13.3"
+__version__ = "1.15"
 
 try:
     input = raw_input
@@ -207,7 +207,7 @@ class XrandrOutput(object):
             for p in properties])
 
     # This regular expression is used to parse an output in `xrandr --verbose'
-    XRANDR_OUTPUT_REGEXP = """(?x)
+    XRANDR_OUTPUT_REGEXP = r"""(?x)
         ^\s*(?P<output>\S[^ ]*)\s+                                                      # Line starts with output name
         (?:                                                                             # Differentiate disconnected and connected
             disconnected |                                                              # in first line
@@ -232,9 +232,9 @@ class XrandrOutput(object):
             CRTC:\s*(?P<crtc>[0-9]) |                                                   # CRTC value
             Transform: (?P<transform>(?:[\-0-9\. ]+\s+){3}) |                           # Transformation matrix
                       filter:\s+(?P<filter>bilinear|nearest) |                          # Transformation filter
-            EDID: (?P<edid>\s*?(?:\\n\\t\\t[0-9a-f]+)+) |                               # EDID of the output
-            """ + XRANDR_PROPERTIES_REGEXP + """ |                                      # Properties to include in the profile
-            (?![0-9])[^:\s][^:\n]+:.*(?:\s\\t[\\t ].+)*                                 # Other properties
+            EDID: (?P<edid>\s*?(?:\n\t\t[0-9a-f]+)+) |                                  # EDID of the output
+            """ + XRANDR_PROPERTIES_REGEXP + r""" |                                     # Properties to include in the profile
+            (?![0-9])[^:\s][^:\n]+:.*(?:\s\t[\t ].+)*                                   # Other properties
         ))+
         \s*
         (?P<modes>(?:
@@ -245,7 +245,7 @@ class XrandrOutput(object):
         )*)
     """
 
-    XRANDR_OUTPUT_MODES_REGEXP = """(?x)
+    XRANDR_OUTPUT_MODES_REGEXP = r"""(?x)
         (?P<name>\S+).+?(?P<preferred>\+preferred)?\s+
          h:\s+width\s+(?P<width>[0-9]+).+\s+
          v:\s+height\s+(?P<height>[0-9]+).+clock\s+(?P<rate>[0-9\.]+)Hz\s* |
@@ -589,7 +589,7 @@ def xrandr_version():
     if getattr(xrandr_version, "version", False) is False:
         version_string = os.popen("xrandr -v").read()
         try:
-            version = re.search("xrandr program version\s+([0-9\.]+)", version_string).group(1)
+            version = re.search(r"xrandr program version\s+([0-9\.]+)", version_string).group(1)
             xrandr_version.version = Version(version)
         except AttributeError:
             xrandr_version.version = Version("1.3.0")
@@ -735,7 +735,7 @@ def update_profiles_edid(profiles, config):
                 if profile_config[c].fingerprint != fingerprint or c == fp_map[fingerprint]:
                     continue
 
-                print("%s: renaming display %s to %s" % (p, c, fp_map[fingerprint]))
+                print("%s: renaming display %s to %s" % (p, c, fp_map[fingerprint]), file=sys.stderr)
 
                 tmp_disp = profile_config[c]
 
@@ -757,6 +757,8 @@ def find_profiles(current_config, profiles):
     for profile_name, profile in profiles.items():
         config = profile["config"]
         matches = True
+        if not config.items():
+            continue
         for name, output in config.items():
             if not output.fingerprint:
                 continue
@@ -885,7 +887,7 @@ def get_fb_dimensions(configuration):
             o_width += o_left
             o_height += o_top
         if "panning" in output.options:
-            match = re.match("(?P<w>[0-9]+)x(?P<h>[0-9]+)(?:\+(?P<x>[0-9]+))?(?:\+(?P<y>[0-9]+))?.*", output.options["panning"])
+            match = re.match(r"(?P<w>[0-9]+)x(?P<h>[0-9]+)(?:\+(?P<x>[0-9]+))?(?:\+(?P<y>[0-9]+))?.*", output.options["panning"])
             if match:
                 detail = match.groupdict(default="0")
                 o_width = int(detail.get("w")) + int(detail.get("x"))
@@ -1325,6 +1327,11 @@ def dispatch_call_to_sessions(argv):
             # Cannot work with this environment, skip.
             continue
 
+        if "WAYLAND_DISPLAY" in process_environ and process_environ["WAYLAND_DISPLAY"]:
+            if "--debug" in argv:
+                print("Detected Wayland session '{0}'. Skipping.".format(process_environ["WAYLAND_DISPLAY"]))
+            continue
+
         # To allow scripts to detect batch invocation (especially useful for predetect)
         process_environ["AUTORANDR_BATCH_PID"] = str(os.getpid())
         process_environ["UID"] = str(uid)
@@ -1334,6 +1341,11 @@ def dispatch_call_to_sessions(argv):
         if "XAUTHORITY" not in process_environ:
             # It's very likely that we cannot work with this environment either,
             # but keep it as a backup just in case we don't find anything else.
+            backup_candidates[display] = process_environ
+            continue
+
+        if not os.path.exists(process_environ["XAUTHORITY"]):
+            # The XAUTHORITY may not be updated in tmux processes when the user re-login
             backup_candidates[display] = process_environ
             continue
 
@@ -1437,6 +1449,9 @@ def main(argv):
         user = pwd.getpwuid(os.getuid())
         user = user.pw_name if user else "#%d" % os.getuid()
         print("autorandr running as user %s (started from batch instance)" % user)
+    if ("WAYLAND_DISPLAY" in os.environ and os.environ["WAYLAND_DISPLAY"]):
+        print("Detected Wayland session '{0}'. Exiting.".format(os.environ["WAYLAND_DISPLAY"]), file=sys.stderr)
+        sys.exit(1)
 
     profiles = {}
     profile_symlinks = {}
